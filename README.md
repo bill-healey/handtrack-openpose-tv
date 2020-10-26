@@ -6,7 +6,7 @@ Provides control of WebOS-compatible TVs without any type of controller by track
 - [x] OpenPose
 - [x] OpenCV
 
-## OpenPose Windows Build Commands
+## OpenPose Windows Build Steps
 - [x] Install MSVC Native Tools for VS 2019
 - [x] Install CUDA
 - [x] Install cuDNN
