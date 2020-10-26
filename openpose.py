@@ -8,6 +8,7 @@ import argparse
 import time
 import pyopenpose as op
 import numpy as np
+from pytv import PyTvCursor
 
 LEFT_HAND = 0
 RIGHT_HAND = 1
@@ -24,32 +25,37 @@ HAND_MAP = {'Wrist': 0,
             'Pinky1Knuckles': 17, 'Pinky2PIP': 18, 'Pinky3DIP': 19, 'Pinky4FingerTip': 20}
 
 
-def check_hand_pos(body, left_hand, right_hand):
+def check_hand_pose(body, left_hand, right_hand):
     # Right hand wrist above shoulders is used as cursor activation
 
     # print('RWrist: {}'.format(body[BODY_MAP['RWrist']]))
     # print('REye: {}'.format(body[BODY_MAP['REye']]))
+    retval = {
+        'finger_pos': None,
+        'click': None
+    }
 
     if right_hand[HAND_MAP['Index4FingerTip']][1] == 0 or \
        right_hand[HAND_MAP['Wrist']][1] == 0 or \
        body[BODY_MAP['RShoulder']][1] == 0 or \
        left_hand[HAND_MAP['Index4FingerTip']][1] == 0:
-        return False
+        return retval
 
-    if right_hand[HAND_MAP['Wrist']][1] < body[BODY_MAP['RShoulder']][1] and \
-       right_hand[HAND_MAP['Index4FingerTip']][1] < body[BODY_MAP['LShoulder']][1]:
+    shoulder_height = np.average((body[BODY_MAP['RShoulder']][1], body[BODY_MAP['LShoulder']][1]))
 
-        print('RShoulder: {} Fingertip: {}, {}'.format(
-            body[BODY_MAP['RShoulder']][1],
-            right_hand[HAND_MAP['Index4FingerTip']][0],
-            right_hand[HAND_MAP['Index4FingerTip']][1]))
+    if right_hand[HAND_MAP['Wrist']][1] < shoulder_height and \
+       right_hand[HAND_MAP['Index4FingerTip']][1] < shoulder_height:
+
+        retval['finger_pos'] = right_hand[HAND_MAP['Index4FingerTip']][0], right_hand[HAND_MAP['Index4FingerTip']][1]
+        print('RShoulder: {} Fingertip: {}'.format(shoulder_height, retval['finger_pos']))
 
     # Left hand wrist above shoulders triggers a click
     if left_hand[HAND_MAP['Wrist']][1] < body[BODY_MAP['RShoulder']][1] and \
             left_hand[HAND_MAP['Index4FingerTip']][1] < body[BODY_MAP['LShoulder']][1]:
+        retval['click'] = True
         print('Click')
 
-    return True
+    return retval
 
 
 def configure_for_images(parser):
@@ -100,15 +106,20 @@ opWrapper.configure(params)
 opWrapper.start()
 
 datum = op.Datum()
+cursor = PyTvCursor()
+
 while cv2.waitKey(1) != 27:
     ret, frame = cam.read()
     datum.cvInputData = frame
     opWrapper.emplaceAndPop([datum])
 
     if datum.poseKeypoints.shape == (1, 25, 3) and type(datum.handKeypoints) is list and len(datum.handKeypoints) == 2:
-        check_hand_pos(datum.poseKeypoints[0],
+        pose = check_hand_pose(datum.poseKeypoints[0],
                        datum.handKeypoints[0][0],
                        datum.handKeypoints[1][0])
+        cursor.pos = pose['finger_pos']
+        if pose['click']:
+            cursor.click()
     else:
         print("No pose found")
         time.sleep(1)
