@@ -1,9 +1,10 @@
 import time
+import math
 from pywebostv.connection import WebOSClient
 from pywebostv.controls import InputControl, SystemControl, MediaControl
 
 
-class PyTvCursor:
+class PyTVCursor:
     '''
     Implements a smaller coordinate window of size self.width x self.height within the larger coordinate system.
     This window is shifted within the larger coordinate system such that the cursor drags the window along with it.
@@ -15,30 +16,76 @@ class PyTvCursor:
     The pos properties are used to pass the current external coordinate and retrieve the internal coordinate
     '''
 
-    # system = SystemControl(client)
-    # system.notify("This is a test")
-
-    # media = MediaControl(client)
-    # media.play()
-    # media.pause()
-
     def __init__(self):
-        self.height = 100.0
-        self.width = 100.0
-        self._x = 50.0
-        self._y = 50.0
-        self.minx = 0.0
-        self.miny = 0.0
+        # X, Y, Height, width of window in world coordinates +y up
+        self.world_window_height = 200.0
+        self.world_window_width = 200.0
+        self.world_window_x = -100.0
+        self.world_window_y = -100.0
+
+        # Height and width of window in tv coordinates
+        self.tv_window_half_height = 50
+        self.tv_window_half_width = 85
+
+        # Current cursor coordinate in tv coordinates, starts in center of screen +y down
+        self.tv_cursor_x = 0
+        self.tv_cursor_y = 0
+
         self.last_click_ms = 0
         self.input_control = None
-        self.last_x = 0.0
-        self.last_y = 0.0
+        self.system_control = None
+        self.media_control = None
 
         self.tv_context = {
             'client_key': 'c8bfd5128b861d24a0ffbf6644eb6f18',
             'local_address': '10.0.0.214'  # client.peer_address[0]
         }
 
+        self.connect_and_register_to_tv()
+
+    def update_world_coordinate(self, pos):
+
+        if pos is None or len(pos) != 2:
+            return
+
+        # shift window in x direction
+        self.world_window_x = min(pos[0], self.world_window_x)
+        if pos[0] > self.world_window_x + self.world_window_width:
+            self.world_window_x = pos[0] - self.world_window_width
+
+        world_window_x_center = self.world_window_x + 0.5 * self.world_window_width
+        x_unit_vector = (pos[0] - world_window_x_center) / (self.world_window_width * 0.5)
+
+        # shift window in y direction and calculate vector
+        self.world_window_y = min(pos[1], self.world_window_y)
+        if pos[1] > self.world_window_y + self.world_window_height:
+            self.world_window_y = pos[1] - self.world_window_height
+
+        world_window_y_center = self.world_window_y + 0.5 * self.world_window_height
+        y_unit_vector = (pos[1] - world_window_y_center) / (self.world_window_height * 0.5)
+
+        new_x_coord = x_unit_vector * self.tv_window_half_width
+        new_y_coord = y_unit_vector * self.tv_window_half_height * -1.0
+
+        self.normalized_cursor_move(new_x_coord, new_y_coord)
+
+    def normalized_cursor_move(self, new_x_coord, new_y_coord):
+        try:
+            while True:
+                # always move in increments of 5, and move both x and y at once if possible
+                x_step = 0 if int(new_x_coord) == self.tv_cursor_x else math.copysign(5, int(new_x_coord) - self.tv_cursor_x)
+                y_step = 0 if int(new_y_coord) == self.tv_cursor_y else math.copysign(5, int(new_y_coord) - self.tv_cursor_y)
+                if x_step == 0 and y_step == 0:
+                    return
+                self.input_control.move(x_step, y_step)
+                self.tv_cursor_x += x_step / 5
+                self.tv_cursor_y += y_step / 5
+
+        except Exception as e:
+            print('pytv move failed with {}'.format(e))
+            self.input_control.connect_input()
+
+    def connect_and_register_to_tv(self):
         # self.client = WebOSClient.discover()[0]
         self.client = WebOSClient(self.tv_context['local_address'])
 
@@ -52,46 +99,10 @@ class PyTvCursor:
                 print("Registration successful!")
                 self.input_control = InputControl(self.client)
                 self.input_control.connect_input()
-
-    @property
-    def pos(self):
-        return self._x, self._y
-
-    @pos.setter
-    def pos(self, pos):
-
-        if pos is None or len(pos) != 2:
-            return
-
-        if self.last_x is None or self.last_y is None:
-            self.last_x = pos[0]
-            self.last_y = pos[1]
-            return
-
-        # # shift window in x direction
-        # self.minx = min(pos[0], self.minx)
-        # if pos[0] > self.minx + self.width:
-        #     self.minx = pos[0] - self.width
-        # self._x = self.width - (pos[0] - self.minx)
-        #
-        # # shift window in y direction
-        # self.miny = min(pos[1], self.miny)
-        # if pos[1] > self.miny + self.height:
-        #     self.miny = pos[1] - self.height
-        # self._y = pos[1] - self.miny
-
-        # move the cursor
-        try:
-            move_x = (pos[0]-self.last_x) * -2.0
-            move_y = (pos[1]-self.last_y) * 2.0
-            print('move {},{}'.format(move_x, move_y))
-            self.input_control.move(move_x, move_y)
-            self.last_x = pos[0]
-            self.last_y = pos[1]
-            time.sleep(.1)
-        except Exception as e:
-            print('pytv move failed with {}'.format(e))
-            self.input_control.connect_input()
+                self.system_control = SystemControl(self.client)
+                # self.media_control = MediaControl(self.client)
+                # media.play()
+                # media.pause()
 
     def click(self):
         # De-bounce the click
@@ -107,3 +118,120 @@ class PyTvCursor:
         except Exception as e:
             print('pytv click failed with {}'.format(e))
             self.input_control.connect_input()
+
+    def move(self, x, y):
+        self.input_control.move(x, y)
+
+    def test_amazon_profiles(self):
+        self.center()
+        print('start')
+        for i in range(9):
+            self.move(-15, 0)
+        time.sleep(1)
+        self.center()
+        for i in range(5):
+            self.move(-15, 0)
+        time.sleep(1)
+        self.center()
+        time.sleep(1)
+        self.center()
+        for i in range(6):
+            self.move(15, 0)
+        time.sleep(1)
+        self.center()
+        for i in range(8):
+            self.move(15, 0)
+
+    def test_multi_path(self):
+        self.center()
+        print('start')
+        for i in range(8):
+            self.move(-15, 0)
+        self.system_control.notify("Path 1 complete")
+        time.sleep(5)
+        self.center()
+
+        for i in range(10):
+            self.move(-12, 0)
+        self.system_control.notify("Path 2 complete")
+        time.sleep(5)
+        self.center()
+
+        for i in range(12):
+            self.move(-10, 0)
+        self.system_control.notify("Path 3 complete")
+        time.sleep(5)
+
+    # Validates the TV width/height by moving cursor in a figure-eight pattern
+    def test_figure_eight(self):
+        # Right
+        for i in range(85):
+            tv.move(5, 0)
+            time.sleep(.01)
+        # Down
+        for i in range(50):
+            tv.move(0, 5)
+            time.sleep(.01)
+        # Left
+        for i in range(85):
+            tv.move(-5, 0)
+            time.sleep(.01)
+        # up
+        for i in range(50):
+            tv.move(0, -5)
+            time.sleep(.01)
+        # left
+        for i in range(85):
+            tv.move(-5, 0)
+            time.sleep(.01)
+        # up
+        for i in range(50):
+            tv.move(0, -5)
+            time.sleep(.01)
+        # Right
+        for i in range(85):
+            tv.move(5, 0)
+            time.sleep(.01)
+        # Down
+        for i in range(50):
+            tv.move(0, 5)
+            time.sleep(.01)
+
+    def test_world_coordinate_translation(self):
+        self.update_world_coordinate((0.0, 0.0))
+        time.sleep(1)
+        self.update_world_coordinate((50.0, 0.0))
+        time.sleep(1)
+        self.update_world_coordinate((50.0, 50.0))
+        time.sleep(1)
+        self.update_world_coordinate((0.0, 50.0))
+        time.sleep(1)
+        self.update_world_coordinate((0.0, 0.0))
+        time.sleep(1)
+        self.update_world_coordinate((-100.0, 0.0))
+        time.sleep(1)
+        self.update_world_coordinate((-200.0, 0.0))
+        time.sleep(1)
+        self.update_world_coordinate((0.0, 200.0))
+        time.sleep(1)
+
+    def center(self):
+        for i in range(18):
+            tv.move(-20, -20)
+            # time.sleep(0.01)
+        for i in range(16):
+            tv.move(15, 10)
+            # time.sleep(0.01)
+
+
+# half-width=280
+# half-height=175
+# max step vert = 20
+# max step horiz = 15
+
+if __name__ ==  '__main__':
+    tv = PyTVCursor()
+    # tv.test_multi_path()
+    #tv.test_figure_eight()
+    tv.test_world_coordinate_translation()
+    time.sleep(1)

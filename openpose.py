@@ -8,7 +8,7 @@ import argparse
 import time
 import pyopenpose as op
 import numpy as np
-from pytv import PyTvCursor
+from pytv import PyTVCursor
 
 LEFT_HAND = 0
 RIGHT_HAND = 1
@@ -106,7 +106,7 @@ opWrapper.configure(params)
 opWrapper.start()
 
 datum = op.Datum()
-cursor = PyTvCursor()
+cursor = PyTVCursor()
 
 while cv2.waitKey(1) != 27:
     ret, frame = cam.read()
@@ -115,9 +115,9 @@ while cv2.waitKey(1) != 27:
 
     if datum.poseKeypoints.shape == (1, 25, 3) and type(datum.handKeypoints) is list and len(datum.handKeypoints) == 2:
         pose = check_hand_pose(datum.poseKeypoints[0],
-                       datum.handKeypoints[0][0],
-                       datum.handKeypoints[1][0])
-        cursor.pos = pose['finger_pos']
+                               datum.handKeypoints[0][0],
+                               datum.handKeypoints[1][0])
+        cursor.update_world_coordinate(pose['finger_pos'])
         if pose['click']:
             cursor.click()
     else:

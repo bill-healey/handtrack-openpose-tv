@@ -1,6 +1,12 @@
 ## TV Gesture Control
 Provides control of WebOS-compatible TVs without any type of controller by tracking human body arm and hand position via a consumer-grade webcam.  This project leverages the CMU Perceptual Computing Lab's excellent OpenPose library in addition to PyWebOSTV.
 
+## TODO:
+- [x] Unfortunately webostv cursor input moves relative rather than absolute.  This makes it difficult to accurately keep track of the cursor position and keep it relative to the body.
+- [x] Idea 1: embrace the relative positioning, move cursor like a joystick 
+- [x] Idea 2: Move cursor only upon certain finger pose (allowing user to drag it across the screen.)
+- [x] Idea 3: Emulate absolute position by moving to cursor to the far corner then back to exact position via 2 calls
+
 ## Requirements
 - [x] pywebostv==0.8.4
 - [x] OpenPose
