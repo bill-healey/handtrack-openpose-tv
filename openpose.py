@@ -43,15 +43,17 @@ def check_hand_pose(body, left_hand, right_hand):
 
     shoulder_height = np.average((body[BODY_MAP['RShoulder']][1], body[BODY_MAP['LShoulder']][1]))
 
-    if right_hand[HAND_MAP['Wrist']][1] < shoulder_height and \
-       right_hand[HAND_MAP['Index4FingerTip']][1] < shoulder_height:
+    right_hand_above_shoulder = right_hand[HAND_MAP['Wrist']][1] < shoulder_height and \
+       right_hand[HAND_MAP['Index4FingerTip']][1] < shoulder_height
 
+    if right_hand_above_shoulder:
         retval['finger_pos'] = right_hand[HAND_MAP['Index4FingerTip']][0], right_hand[HAND_MAP['Index4FingerTip']][1]
         print('RShoulder: {} Fingertip: {}'.format(shoulder_height, retval['finger_pos']))
 
-    # Left hand wrist above shoulders triggers a click
+    # Left hand wrist above shoulder with right hand up triggers a click
     if left_hand[HAND_MAP['Wrist']][1] < body[BODY_MAP['RShoulder']][1] and \
-            left_hand[HAND_MAP['Index4FingerTip']][1] < body[BODY_MAP['LShoulder']][1]:
+            left_hand[HAND_MAP['Index4FingerTip']][1] < body[BODY_MAP['LShoulder']][1] and \
+            right_hand_above_shoulder:
         retval['click'] = True
         print('Click')
 

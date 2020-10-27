@@ -18,10 +18,10 @@ class PyTVCursor:
 
     def __init__(self):
         # X, Y, Height, width of window in world coordinates +y up
-        self.world_window_height = 200.0
-        self.world_window_width = 200.0
-        self.world_window_x = -100.0
-        self.world_window_y = -100.0
+        self.world_window_height = 140.0
+        self.world_window_width = 140.0
+        self.world_window_x = -70.0
+        self.world_window_y = -70.0
 
         # Height and width of window in tv coordinates
         self.tv_window_half_height = 50
@@ -64,8 +64,8 @@ class PyTVCursor:
         world_window_y_center = self.world_window_y + 0.5 * self.world_window_height
         y_unit_vector = (pos[1] - world_window_y_center) / (self.world_window_height * 0.5)
 
-        new_x_coord = x_unit_vector * self.tv_window_half_width
-        new_y_coord = y_unit_vector * self.tv_window_half_height * -1.0
+        new_x_coord = x_unit_vector * self.tv_window_half_width * -1
+        new_y_coord = y_unit_vector * self.tv_window_half_height
 
         self.normalized_cursor_move(new_x_coord, new_y_coord)
 
