@@ -176,15 +176,15 @@ class PyTVCursor:
         for i in range(85):
             tv.move(-5, 0)
             time.sleep(.01)
-        # up
+        # Up
         for i in range(50):
             tv.move(0, -5)
             time.sleep(.01)
-        # left
+        # Left
         for i in range(85):
             tv.move(-5, 0)
             time.sleep(.01)
-        # up
+        # Up
         for i in range(50):
             tv.move(0, -5)
             time.sleep(.01)
