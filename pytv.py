@@ -229,7 +229,7 @@ class PyTVCursor:
 # max step vert = 20
 # max step horiz = 15
 
-if __name__ ==  '__main__':
+if __name__ == '__main__':
     tv = PyTVCursor()
     # tv.test_multi_path()
     #tv.test_figure_eight()
