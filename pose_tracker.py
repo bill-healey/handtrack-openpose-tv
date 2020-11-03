@@ -41,7 +41,7 @@ class PoseTracker:
         if right_hand_above_shoulder:
             pose_data['righthand_fingertip_coordinates'] = right_hand[HAND_MAP['Index4FingerTip']][0], \
                                                         right_hand[HAND_MAP['Index4FingerTip']][1]
-            print('RShoulder: {} Fingertip: {}'.format(shoulder_height, pose_data['finger_pos']))
+            print('RShoulder: {} Fingertip: {}'.format(shoulder_height, pose_data['righthand_fingertip_coordinates']))
 
         if left_hand[HAND_MAP['Wrist']][1] < body[BODY_MAP['RShoulder']][1] and \
                 left_hand[HAND_MAP['Index4FingerTip']][1] < body[BODY_MAP['LShoulder']][1] and \

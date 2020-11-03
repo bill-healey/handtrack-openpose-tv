@@ -7,7 +7,7 @@ from gesture_trainer import GestureTrainer
 cursor = PyTVCursor()
 cam = cv2.VideoCapture(0)
 pose_tracker = PoseTracker()
-gesture_trainer = GestureTrainer('right_thumbup')
+gesture_trainer = GestureTrainer()
 
 while cv2.waitKey(1) != 27:
     ret, frame = cam.read()
@@ -21,7 +21,7 @@ while cv2.waitKey(1) != 27:
     cursor.update_world_coordinate(pose['righthand_fingertip_coordinates'])
     if pose['lefthand_up']:
         if gesture_trainer:
-            gesture_trainer.capture_training_image(frame, pose['hand_rectangles'][1])
+            gesture_trainer.capture_training_image(frame, pose['hand_rectangles'])
         else:
             cursor.click()
 
