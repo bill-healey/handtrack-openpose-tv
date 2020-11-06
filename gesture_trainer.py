@@ -1,18 +1,23 @@
+import datetime
+import glob
 import os
 import random
 import shutil
+import time
 
 import cv2
-import time
-import glob
-import numpy as np
-import tensorflow as tf
 import keras
-import datetime
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import tensorflow as tf
+from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D
+from keras.models import Sequential
 from keras.preprocessing.image import ImageDataGenerator
+from sklearn.preprocessing import OneHotEncoder
 from matplotlib import pyplot
-#from keras.models import Sequential
-#from keras.layers import Dense, Dropout, Flatten, Activation, Conv2D, MaxPooling2D
+from tensorflow.python.ops.confusion_matrix import confusion_matrix
 
 
 class GestureTrainer:
@@ -46,27 +51,21 @@ class GestureTrainer:
         print("Num GPUs Available: ", len(physical_devices))
         tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
-    def capture_training_image(self, frame, hand_rectangle_list, hand, gesture):
-        for hands in hand_rectangle_list:
-            if len(hands) != 2:
+    def capture_training_image(self, frame, people_hand_rectangles, hand, gesture):
+        for person_hands in people_hand_rectangles:
+            if len(person_hands) != 2:
                 return
-            left_hand_rect = hands[0]
-            right_hand_rect = hands[1]
+            left_hand_rect = person_hands[0]
+            right_hand_rect = person_hands[1]
         cur_time = time.time()
+
         if cur_time < self.last_capture_timestamp + self.capture_frequency_sec:
             return
-        print('Frame shape {}'.format(frame.shape))
+
         if int(right_hand_rect.x) < 0 or int(right_hand_rect.x + right_hand_rect.width) > frame.shape[1] or \
            int(right_hand_rect.y) < 0 or int(right_hand_rect.y + right_hand_rect.height) > frame.shape[0]:
             return
 
-        #cv2.rectangle(frame,
-        #              (int(right_hand_rect.x), int(right_hand_rect.y)),
-        #              (int(right_hand_rect.x + right_hand_rect.width), int(right_hand_rect.y + right_hand_rect.height)),
-        #              (255, 0, 0),
-        #              1)
-
-        #cv2.imshow('Raw Training Image', frame)
         cropped_img = frame[int(right_hand_rect.y):int(right_hand_rect.y+right_hand_rect.height),
                             int(right_hand_rect.x):int(right_hand_rect.x+right_hand_rect.width)]
         cv2.imshow('Cropped Training Image', cropped_img)
@@ -145,8 +144,7 @@ class GestureTrainer:
         if rescan:
             self.gesture_image_files = self.scan_image_files()
 
-
-    def load_training_images(self, hands, poses):
+    def train(self, hands, poses, show_training_images=False):
         x = {
             'train': [],
             'val': [],
@@ -157,62 +155,114 @@ class GestureTrainer:
             'val': [],
             'test': []
         }
+        enc = OneHotEncoder(handle_unknown='ignore', sparse=False)
         for hand in hands:
             for pose in poses:
                 for t in ['train', 'val', 'test']:
                     for file in self.gesture_image_files[hand][pose][f'{t}_filenames']:
-                        img = keras.preprocessing.image.load_img(file)
+                        img = keras.preprocessing.image.load_img(file, color_mode='rgb')
                         # print('{} {} {} {}'.format(type(img), img.format, img.mode, img.size))
                         img_array = keras.preprocessing.image.img_to_array(img)
-                        img_array = keras.preprocessing.image.smart_resize(img_array, (80, 80), interpolation='bilinear')
+                        img_array = keras.preprocessing.image.smart_resize(img_array, (40, 40), interpolation='bilinear')
                         x[t].append(img_array)
                         y[t].append('{}_{}'.format(hand, pose))
 
-        datagen = ImageDataGenerator(
-            preprocessing_function=keras.applications.vgg16.preprocess_input,
-            rotation_range=20,
-            width_shift_range=0.2,
-            height_shift_range=0.2,
-            fill_mode='nearest'
+        train_datagen = ImageDataGenerator(
+            #preprocessing_function=keras.applications.vgg16.preprocess_input,
+            #rotation_range=10,
+            #width_shift_range=0.1,
+            #height_shift_range=0.1,
+            #fill_mode='nearest',
+            rescale=1./255
+        )
+
+        val_datagen = ImageDataGenerator(
+            #preprocessing_function=keras.applications.vgg16.preprocess_input,
+            #rotation_range=10,
+            #width_shift_range=0.1,
+            #height_shift_range=0.1,
+            #fill_mode='nearest',
+            rescale=1./255
+        )
+
+        test_datagen = ImageDataGenerator(
+            #preprocessing_function=keras.applications.vgg16.preprocess_input,
+            rescale=1. / 255
         )
 
         for t in ['train', 'val', 'test']:
             x[t] = np.array(x[t])
-            y[t] = np.array(y[t])
+            y[t] = np.array(y[t]).reshape(-1, 1)
+            y[t] = enc.fit_transform(y[t])  # Encode Y using OneHot
 
-        datagen.fit(x['train'])
+        train_datagen.fit(x['train'])
+        val_datagen.fit(x['val'])
+        test_datagen.fit(x['test'])
 
-        for x_batch, y_batch in datagen.flow(x['train'], y['train'], batch_size=9):
-            for i in range(0, len(x_batch)):
-                pyplot.subplot(330 + 1 + i)
-                pyplot.imshow(x_batch[i])
-            pyplot.show()
+        if show_training_images:
+            for x_batch, y_batch in train_datagen.flow(x['train'], y['train'], batch_size=100):
+                for i in range(0, len(x_batch)):
+                    subplot = pyplot.subplot(10, 10, i + 1)
+                    subplot.set_title(enc.inverse_transform(y_batch[i].reshape(1, -1))[0][0])
+                    pyplot.imshow(x_batch[i])
+                pyplot.subplots_adjust(left=0, right=1.0, bottom=0.025, top=0.975, wspace=0.155, hspace=0.470)
+                pyplot.get_current_fig_manager().window.showMaximized()
+                pyplot.show()
+                break
 
-    # def train(self):
-    #     batch_size - 128
-    #     epocs = 10
-    #     learning_rate = 0.01
-    #
-    #     model_name = 'hand-pose-right-{}-{}.h5'.format(datetime.date.today(), epocs)
-    #     #model_name = 'hand-pose-left-{}-{}.h5'.format(datetime.date.today(), epocs)
-    #
-    #     # Model Definition
-    #     model = Sequential()
-    #     model.add(Conv2D(filters=32, kernel_size=(3, 3), activation='relu', input_shape=input_shape))
-    #     model.add(Conv2D(filters=64, kernel_size=(3, 3), activation='relu'))
-    #     model.add(MaxPooling2D(pool_size=(2, 2)))
-    #     model.add(Dropout(rate=0.25))
-    #     model.add(Flatten())
-    #     model.add(Dense(units=128, activation='relu'))
-    #     model.add(Dropout(rate=0.5))
-    #     model.add(Dense(units=num_classes, activation='softmax'))
-    #     model.compile(loss=keras.losses.categorical_crossentropy,
-    #                   optimizer=keras.optimizers.Adam(lr=learning_rate),
-    #                   metrics=['accuracy'])
+        print('About to train with {} training images'.format(len(x['train'])))
+
+        learning_rate = 0.001
+        epocs = 4
+        batch_size = 14
+        model_name = 'hand-pose-right-{}-{}.h5'.format(datetime.date.today(), epocs)
+
+        train_gen = train_datagen.flow(x['train'], y['train'], batch_size=batch_size, shuffle=True)
+        val_gen = val_datagen.flow(x['val'], y['val'], batch_size=batch_size, shuffle=True)
+        test_gen = test_datagen.flow(x['test'], y['test'], batch_size=batch_size)
+
+        model = Sequential()
+        model.add(Conv2D(filters=32, kernel_size=(3, 3), activation='relu', input_shape=x['train'][0].shape))
+        model.add(Conv2D(filters=64, kernel_size=(3, 3), activation='relu'))
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Dropout(rate=0.25))
+        model.add(Flatten())
+        model.add(Dense(units=128, activation='relu'))
+        model.add(Dropout(rate=0.5))
+        model.add(Dense(units=len(enc.categories_[0]), activation='softmax'))
+        model.compile(loss=keras.losses.categorical_crossentropy,
+                      optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
+                      metrics=['accuracy'])
+
+        print("Training on {} training images, {} validation images".format(train_gen.n, val_gen.n))
+
+        model.fit(x=train_gen.x,
+                  y=train_gen.y,
+                  epochs=epocs,
+                  steps_per_epoch=train_gen.n // train_gen.batch_size,
+                  validation_data=(val_gen.x, val_gen.y),
+                  verbose=2)
+
+        model.save_weights(model_name)
+
+        predictions = model.predict(x=test_gen.x, verbose=2)
+        y_pred = np.argmax(predictions, axis=1)
+        cm_labels = np.argmax(test_gen.y, axis=1)
+        cm = confusion_matrix(labels=cm_labels, predictions=y_pred).numpy()
+        cm_norm = np.around(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], decimals=2)
+        cm_df = pd.DataFrame(cm_norm,
+                             index=enc.categories_[0],
+                             columns=enc.categories_[0])
+        figure = plt.figure(figsize=(8, 8))
+        sns.heatmap(cm_df, annot=True, cmap=plt.cm.Blues)
+        plt.tight_layout()
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
+        plt.show()
 
 
 if __name__ == '__main__':
     trainer = GestureTrainer()
     trainer.rebalance_test_train_files()
-    trainer.load_training_images(['rh'], ['unrecognized'])
+    trainer.train(['rh'], trainer.gestures, show_training_images=False)
 
