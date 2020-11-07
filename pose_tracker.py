@@ -24,7 +24,8 @@ class PoseTracker:
 
         pose_data = {
             'righthand_fingertip_coordinates': None,
-            'lefthand_up': None
+            'lefthand_up': None,
+            'righthand_up': None
         }
 
         if right_hand[HAND_MAP['Index4FingerTip']][1] == 0 or \
@@ -39,9 +40,10 @@ class PoseTracker:
            right_hand[HAND_MAP['Index4FingerTip']][1] < shoulder_height
 
         if right_hand_above_shoulder:
+            pose_data['righthand_up'] = True
             pose_data['righthand_fingertip_coordinates'] = right_hand[HAND_MAP['Index4FingerTip']][0], \
                                                         right_hand[HAND_MAP['Index4FingerTip']][1]
-            print('RShoulder: {} Fingertip: {}'.format(shoulder_height, pose_data['righthand_fingertip_coordinates']))
+            #print('RShoulder: {} Fingertip: {}'.format(shoulder_height, pose_data['righthand_fingertip_coordinates']))
 
         if left_hand[HAND_MAP['Wrist']][1] < body[BODY_MAP['RShoulder']][1] and \
                 left_hand[HAND_MAP['Index4FingerTip']][1] < body[BODY_MAP['LShoulder']][1] and \
@@ -51,13 +53,16 @@ class PoseTracker:
 
         return pose_data
 
-    def get_frame_from_file(self):
+    def get_pose_and_frame_from_file(self):
         lefthand_up_image = 'D:\\git\\openpose\\examples\\media\\COCO_val2014_000000000569.jpg'
         lefthand_down_image = 'D:\\git\\openpose\\examples\\media\\COCO_val2014_000000000241.jpg'
-        imageToProcess = cv2.imread(lefthand_up_image)
-        self.datum.cvInputData = imageToProcess
+        hands_up_image = 'D:\\git\\openpose\\examples\\media\\hands_up.jpg'
+        imageToProcess = cv2.imread(hands_up_image)
+        pose = self.predict_pose_from_frame(imageToProcess, display_pose=True)
 
-    def get_pose_from_frame(self, frame, display_pose=True):
+        return pose, imageToProcess
+
+    def predict_pose_from_frame(self, frame, display_pose=True):
         self.datum.cvInputData = frame
         self.open_pose_wrapper.emplaceAndPop([self.datum])
 
