@@ -36,13 +36,14 @@ class PoseTracker:
 
         shoulder_height = np.average((body[BODY_MAP['RShoulder']][1], body[BODY_MAP['LShoulder']][1]))
 
-        right_hand_above_shoulder = right_hand[HAND_MAP['Wrist']][1] < shoulder_height and \
-           right_hand[HAND_MAP['Index4FingerTip']][1] < shoulder_height
+        right_hand_above_shoulder = body[BODY_MAP['RWrist']][1] < shoulder_height
 
         if right_hand_above_shoulder:
             pose_data['righthand_up'] = True
             pose_data['righthand_fingertip_coordinates'] = right_hand[HAND_MAP['Index4FingerTip']][0], \
                                                         right_hand[HAND_MAP['Index4FingerTip']][1]
+            pose_data['righthand_wrist_coordinates'] = body[BODY_MAP['RWrist']][0], body[BODY_MAP['RWrist']][1]
+
             #print('RShoulder: {} Fingertip: {}'.format(shoulder_height, pose_data['righthand_fingertip_coordinates']))
 
         if left_hand[HAND_MAP['Wrist']][1] < body[BODY_MAP['RShoulder']][1] and \

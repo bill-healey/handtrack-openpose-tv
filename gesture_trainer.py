@@ -71,17 +71,18 @@ class GestureTrainer:
         img_array = np.expand_dims(img_array, axis=0)  # Make this single image a rank 4 tensor
         predictions = self.prediction_model.predict(img_array)[0]
         #print('Predictions: {}'.format(predictions))
-        predict_max = np.argmax(predictions)
-        if predictions[predict_max] > 0.99:
-            print('high confidence pose: {}, confidence: {}'.format(self.prediction_decoder[predict_max], predictions[predict_max]))
-            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[predict_max].split('_'))
-        elif predictions[predict_max] > 0.80:
-            print('low  confidence pose: {}, confidence: {}'.format(self.prediction_decoder[predict_max], predictions[predict_max]))
-            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[predict_max].split('_'))
+        pred_i = np.argmax(predictions)
+        if predictions[pred_i] > 0.999:
+            print('high confidence pose: {}, confidence: {}'.format(self.prediction_decoder[pred_i], predictions[pred_i]))
+            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_high_confidence')
+        elif predictions[pred_i] > 0.80:
+            print('moderate confidence pose: {}, confidence: {}'.format(self.prediction_decoder[pred_i], predictions[pred_i]))
+            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_mid_confidence')
         else:
             print('No prediction')
+            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_low_confidence')
 
-        return predict_max
+        return self.prediction_decoder[pred_i], predictions[pred_i]
 
     def extract_right_hand_from_images(self, frame, people_hand_rectangles):
         for person_hands in people_hand_rectangles:
@@ -102,7 +103,7 @@ class GestureTrainer:
 
         return cropped_img
 
-    def capture_training_image(self, frame, people_hand_rectangles, hand, gesture):
+    def capture_training_image(self, frame, people_hand_rectangles, hand, gesture, subdir='autocaptured'):
         cur_time = time.time()
 
         if cur_time < self.last_capture_timestamp + self.capture_frequency_sec:
@@ -112,7 +113,8 @@ class GestureTrainer:
 
         if cropped_img is not None:
             cv2.imshow('Cropped Training Image', cropped_img)
-            image_name = 'images/autocaptured/{}_{}_{}.jpg'.format(
+            image_name = 'images/{}/{}_{}_{}.jpg'.format(
+                subdir,
                 hand,
                 gesture,
                 md5(np.ascontiguousarray(cropped_img)).hexdigest()[:6])

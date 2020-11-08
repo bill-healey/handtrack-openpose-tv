@@ -18,10 +18,10 @@ class PyTVCursor:
 
     def __init__(self):
         # X, Y, Height, width of window in world coordinates +y up
-        self.world_window_height = 140.0
-        self.world_window_width = 140.0
-        self.world_window_x = -70.0
-        self.world_window_y = -70.0
+        self.world_window_height = 100.0
+        self.world_window_width = 120.0
+        self.world_window_x = -60.0
+        self.world_window_y = -50.0
 
         # Height and width of window in tv coordinates
         self.tv_window_half_height = 50
@@ -32,6 +32,8 @@ class PyTVCursor:
         self.tv_cursor_y = 0
 
         self.last_click_ms = 0
+        self.paused = False
+
         self.input_control = None
         self.system_control = None
         self.media_control = None
@@ -100,9 +102,7 @@ class PyTVCursor:
                 self.input_control = InputControl(self.client)
                 self.input_control.connect_input()
                 self.system_control = SystemControl(self.client)
-                # self.media_control = MediaControl(self.client)
-                # media.play()
-                # media.pause()
+                self.media_control = MediaControl(self.client)
 
     def click(self):
         # De-bounce the click
@@ -119,8 +119,42 @@ class PyTVCursor:
             print('pytv click failed with {}'.format(e))
             self.input_control.connect_input()
 
+    def center(self):
+        for i in range(18):
+            tv.move(-20, -20)
+            # time.sleep(0.01)
+        for i in range(16):
+            tv.move(15, 10)
+            # time.sleep(0.01)
+
     def move(self, x, y):
         self.input_control.move(x, y)
+
+    def toggle_pause(self):
+        if self.paused:
+            self.media_control.play()
+            self.paused = False
+        else:
+            self.media_control.pause()
+            self.paused = True
+
+    def keypad_up(self):
+        self.input_control.up()
+
+    def keypad_down(self):
+        self.input_control.down()
+
+    def keypad_left(self):
+        self.input_control.left()
+
+    def keypad_right(self):
+        self.input_control.right()
+
+    def keypad_ok(self):
+        self.input_control.ok()
+
+    def keypad_back(self):
+        self.input_control.back()
 
     def test_amazon_profiles(self):
         self.center()
@@ -214,14 +248,6 @@ class PyTVCursor:
         time.sleep(1)
         self.update_world_coordinate((0.0, 200.0))
         time.sleep(1)
-
-    def center(self):
-        for i in range(18):
-            tv.move(-20, -20)
-            # time.sleep(0.01)
-        for i in range(16):
-            tv.move(15, 10)
-            # time.sleep(0.01)
 
 
 # half-width=280
