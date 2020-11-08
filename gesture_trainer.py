@@ -2,8 +2,10 @@ import datetime
 import glob
 import os
 import random
+import re
 import shutil
 import time
+from hashlib import md5
 
 import cv2
 import keras
@@ -21,11 +23,11 @@ from tensorflow.python.ops.confusion_matrix import confusion_matrix
 
 
 class GestureTrainer:
-    def __init__(self, prediction_model_filename='hand-pose-right-2020-11-07-90.h5'):
+    def __init__(self, prediction_model_filename='best2.h5'):
         self.capture_frequency_sec = 0.2
         self.last_capture_timestamp = 0
-        self.min_validation_images = 10
-        self.min_test_images = 3
+        self.min_validation_images = 30
+        self.min_test_images = 5
         self.gestures = [
             'animalhead',
             'fingerspread',
@@ -44,7 +46,10 @@ class GestureTrainer:
             'thumbsup',
             'two',
             'unrecognized',
-            'zero'
+            'zero',
+            'twoleft',
+            'tworight',
+            'twodown',
         ]
         self.gesture_image_files = self.scan_image_files()
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -52,6 +57,7 @@ class GestureTrainer:
         tf.config.experimental.set_memory_growth(physical_devices[0], True)
         try:
             self.prediction_model = keras.models.load_model(prediction_model_filename)
+            self.prediction_decoder = np.load(f'{prediction_model_filename}.npy')
         except Exception as e:
             self.prediction_model = None
             print('Could not load prediction model from file {} due to {}'.format(prediction_model_filename, e))
@@ -66,7 +72,15 @@ class GestureTrainer:
         predictions = self.prediction_model.predict(img_array)[0]
         #print('Predictions: {}'.format(predictions))
         predict_max = np.argmax(predictions)
-        print('pose: {}, confidence: {}'.format(self.gestures[predict_max], predictions[predict_max]))
+        if predictions[predict_max] > 0.99:
+            print('high confidence pose: {}, confidence: {}'.format(self.prediction_decoder[predict_max], predictions[predict_max]))
+            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[predict_max].split('_'))
+        elif predictions[predict_max] > 0.80:
+            print('low  confidence pose: {}, confidence: {}'.format(self.prediction_decoder[predict_max], predictions[predict_max]))
+            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[predict_max].split('_'))
+        else:
+            print('No prediction')
+
         return predict_max
 
     def extract_right_hand_from_images(self, frame, people_hand_rectangles):
@@ -98,41 +112,44 @@ class GestureTrainer:
 
         if cropped_img is not None:
             cv2.imshow('Cropped Training Image', cropped_img)
-            image_name = 'images/{}_{}_{}.jpg'.format(hand, gesture, self.gesture_image_files[hand][gesture]['next_int'])
+            image_name = 'images/autocaptured/{}_{}_{}.jpg'.format(
+                hand,
+                gesture,
+                md5(np.ascontiguousarray(cropped_img)).hexdigest()[:6])
             cv2.imwrite(image_name, cropped_img)
             print('Captured training image {}'.format(image_name))
             self.last_capture_timestamp = cur_time
-            self.gesture_image_files[hand][gesture]['next_int'] += 1
 
     def scan_image_files(self):
         gesture_image_files = {}
-        for hand in ['rh', 'lh']:
+        for hand in ['rh']:
             gesture_image_files[hand] = {}
             for pose in self.gestures:
                 gesture_image_files[hand][pose] = {
                     'train_filenames': glob.glob('images/{}_{}_*.jpg'.format(hand, pose), recursive=False),
                     'val_filenames': glob.glob('images/validation/{}_{}_*.jpg'.format(hand, pose), recursive=False),
                     'test_filenames': glob.glob('images/test/{}_{}_*.jpg'.format(hand, pose), recursive=False),
+                    'autocaptured_filenames': glob.glob('images/autocaptured/{}_{}_*.jpg'.format(hand, pose), recursive=False),
                 }
 
+                # This takes any files matching the pattern, hashes it, and renames using the convention.
+                # bad_filenames = glob.glob('images/{}_{} (*)'.format(hand, pose), recursive=False)
+                # for file in bad_filenames:
+                #     img = keras.preprocessing.image.load_img(file, color_mode='rgb')
+                #     os.rename(file, 'images\\{}_{}_{}.jpg'.format(hand, pose, md5(np.ascontiguousarray(img)).hexdigest()[:6]))
+
                 gesture_image_files[hand][pose]['all_filenames'] = gesture_image_files[hand][pose]['train_filenames'] + \
-                    gesture_image_files[hand][pose]['val_filenames'] + \
-                    gesture_image_files[hand][pose]['test_filenames']
+                                                                   gesture_image_files[hand][pose]['val_filenames'] + \
+                    gesture_image_files[hand][pose]['test_filenames'] + \
+                    gesture_image_files[hand][pose]['autocaptured_filenames']
 
-                if len(gesture_image_files[hand][pose]['all_filenames']) == 0:
-                    gesture_image_files[hand][pose]['next_int'] = 0
-                else:
-                    gesture_image_files[hand][pose]['next_int'] = max(
-                        [int(filename.split('_')[-1].split('.')[0]) for filename in gesture_image_files[hand][pose]['all_filenames']]) + 1
-
-                print('Found {} images ({} train, {} validation, {} test) for pose {}_{} next int {}'.format(
+                print('Found {} images ({} train, {} validation, {} test) for pose {}_{}'.format(
                     len(gesture_image_files[hand][pose]['all_filenames']),
                     len(gesture_image_files[hand][pose]['train_filenames']),
                     len(gesture_image_files[hand][pose]['val_filenames']),
                     len(gesture_image_files[hand][pose]['test_filenames']),
                     hand,
-                    pose,
-                    gesture_image_files[hand][pose]['next_int']
+                    pose
                 ))
 
         return gesture_image_files
@@ -199,18 +216,18 @@ class GestureTrainer:
         train_datagen = ImageDataGenerator(
             #preprocessing_function=keras.applications.vgg16.preprocess_input,
             #rotation_range=10,
-            #width_shift_range=0.1,
-            #height_shift_range=0.1,
-            #fill_mode='nearest',
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            fill_mode='nearest',
             rescale=1./255
         )
 
         val_datagen = ImageDataGenerator(
             #preprocessing_function=keras.applications.vgg16.preprocess_input,
             #rotation_range=10,
-            #width_shift_range=0.1,
-            #height_shift_range=0.1,
-            #fill_mode='nearest',
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            fill_mode='nearest',
             rescale=1./255
         )
 
@@ -274,7 +291,9 @@ class GestureTrainer:
                   validation_data=val_gen,
                   verbose=2)
 
+        # Save the model and the one-hot encoding so we can decode later
         model.save(model_name)
+        np.save(f'{model_name}', enc.categories_[0])
 
         predictions = model.predict(x=test_gen.x, verbose=2)
         y_pred = np.argmax(predictions, axis=1)
@@ -295,5 +314,15 @@ class GestureTrainer:
 if __name__ == '__main__':
     trainer = GestureTrainer()
     trainer.rebalance_test_train_files()
-    trainer.train(['rh'], trainer.gestures, show_training_images=False)
+    gestures_to_train = [
+        'animalhead',
+        'fingerspread',
+        'fist',
+        'stop',
+        'two',
+        'twoleft',
+        'tworight',
+        'twodown',
+    ]
+    trainer.train(['rh'], gestures_to_train, show_training_images=False)
 
