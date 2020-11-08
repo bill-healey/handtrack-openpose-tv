@@ -21,12 +21,10 @@ while cv2.waitKey(1) != 27:
 
     cursor.update_world_coordinate(pose['righthand_fingertip_coordinates'])
     if pose['righthand_up']:
+        #gesture_trainer.capture_training_image(frame, pose['hand_rectangles'], 'rh', 'unrecognized')
         gesture_trainer.predict_gesture_from_frame(frame, pose['hand_rectangles'])
-    if pose['lefthand_up']:
-        if gesture_trainer:
-            gesture_trainer.capture_training_image(frame, pose['hand_rectangles'])
-        else:
-            cursor.click()
+    #if pose['lefthand_up']:
+    #    cursor.click()
 
 cam.release()
 cv2.destroyAllWindows()
