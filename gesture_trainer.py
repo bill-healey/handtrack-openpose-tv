@@ -26,8 +26,8 @@ class GestureTrainer:
     def __init__(self, prediction_model_filename='best2.h5'):
         self.capture_frequency_sec = 0.2
         self.last_capture_timestamp = 0
-        self.min_validation_images = 30
-        self.min_test_images = 5
+        self.min_validation_images = 50
+        self.min_test_images = 10
         self.gestures = [
             'animalhead',
             'fingerspread',
@@ -65,22 +65,21 @@ class GestureTrainer:
     def predict_gesture_from_frame(self, frame, people_hand_rectangles):
         cropped_hand_img = self.extract_right_hand_from_images(frame, people_hand_rectangles)
         if cropped_hand_img is None:
-            return None
+            return None, 0.0
         img_array = keras.preprocessing.image.img_to_array(cropped_hand_img).astype('float32') / 255
         img_array = keras.preprocessing.image.smart_resize(img_array, (40, 40), interpolation='bilinear')
         img_array = np.expand_dims(img_array, axis=0)  # Make this single image a rank 4 tensor
         predictions = self.prediction_model.predict(img_array)[0]
-        #print('Predictions: {}'.format(predictions))
         pred_i = np.argmax(predictions)
         if predictions[pred_i] > 0.999:
-            print('high confidence pose: {}, confidence: {}'.format(self.prediction_decoder[pred_i], predictions[pred_i]))
-            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_high_confidence')
+            print('high confidence gesture: {}, confidence: {}'.format(self.prediction_decoder[pred_i], predictions[pred_i]))
+            #self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_high_confidence')
         elif predictions[pred_i] > 0.80:
-            print('moderate confidence pose: {}, confidence: {}'.format(self.prediction_decoder[pred_i], predictions[pred_i]))
-            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_mid_confidence')
+            print('moderate confidence gesture: {}, confidence: {}'.format(self.prediction_decoder[pred_i], predictions[pred_i]))
+            #self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_mid_confidence')
         else:
-            print('No prediction')
-            self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_low_confidence')
+            print('low gesture confidence')
+            #self.capture_training_image(frame, people_hand_rectangles, *self.prediction_decoder[pred_i].split('_'), subdir='autocap_low_confidence')
 
         return self.prediction_decoder[pred_i], predictions[pred_i]
 
@@ -135,10 +134,14 @@ class GestureTrainer:
                 }
 
                 # This takes any files matching the pattern, hashes it, and renames using the convention.
-                # bad_filenames = glob.glob('images/{}_{} (*)'.format(hand, pose), recursive=False)
-                # for file in bad_filenames:
-                #     img = keras.preprocessing.image.load_img(file, color_mode='rgb')
-                #     os.rename(file, 'images\\{}_{}_{}.jpg'.format(hand, pose, md5(np.ascontiguousarray(img)).hexdigest()[:6]))
+                bad_filenames = glob.glob('images/{}_{} (*).jpg'.format(hand, pose), recursive=False)
+                for file in bad_filenames:
+                    img = keras.preprocessing.image.load_img(file, color_mode='rgb')
+                    try:
+                        os.rename(file, 'images\\{}_{}_{}.jpg'.format(hand, pose, md5(np.ascontiguousarray(img)).hexdigest()[:6]))
+                    except FileExistsError:
+                        print('Deleting {} since it is a duplicate'.format(file))
+                        os.remove(file)
 
                 gesture_image_files[hand][pose]['all_filenames'] = gesture_image_files[hand][pose]['train_filenames'] + \
                                                                    gesture_image_files[hand][pose]['val_filenames'] + \

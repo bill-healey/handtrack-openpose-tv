@@ -30,12 +30,21 @@ while cv2.waitKey(1) != 27:
 
     if pose['righthand_up']:
         gesture, confidence = gesture_trainer.predict_gesture_from_frame(frame, pose['hand_rectangles'])
-        cursor.update_world_coordinate(pose['righthand_wrist_coordinates'])
 
-        if confidence > 0.97:
+        if confidence > 0.80:
             hysteresis.update_state(gesture)
 
-        if hysteresis.is_stable('rh_two', secs=0.2, consecutive=2):
+        if hysteresis.is_stable('rh_animalhead', consecutive=1):
+            cursor.update_world_coordinate(pose['righthand_wrist_coordinates'])
+        if hysteresis.is_stable('rh_twoleft', secs=0.2, consecutive=2) and pose['lefthand_up']:
+            cursor.keypad_back()
+            hysteresis.reset()
+            print('***Back***')
+        if hysteresis.is_stable('rh_two', secs=0.2, consecutive=2) and pose['lefthand_up']:
+            cursor.keypad_home()
+            hysteresis.reset()
+            print('***Home***')
+        if hysteresis.is_stable('rh_two', secs=0.2, consecutive=2) and not pose['lefthand_up']:
             cursor.keypad_up()
             hysteresis.reset()
             print('***Up***')
@@ -43,7 +52,7 @@ while cv2.waitKey(1) != 27:
             cursor.keypad_down()
             hysteresis.reset()
             print('***Down***')
-        if hysteresis.is_stable('rh_twoleft', secs=0.2, consecutive=2):
+        if hysteresis.is_stable('rh_twoleft', secs=0.2, consecutive=2) and not pose['lefthand_up']:
             cursor.keypad_left()
             hysteresis.reset()
             print('***Left***')
@@ -51,18 +60,15 @@ while cv2.waitKey(1) != 27:
             cursor.keypad_right()
             hysteresis.reset()
             print('***Right***')
-        if hysteresis.is_stable('rh_fingerspread', secs=0.3, consecutive=2):
+        if hysteresis.is_stable('rh_fingerspread', secs=0.2, consecutive=2):
             cursor.click()
             cursor.keypad_ok()
             hysteresis.reset()
             print('***Click***')
-        if hysteresis.is_stable('rh_stop', secs=0.3, consecutive=2):
+        if hysteresis.is_stable('rh_stop', secs=0.6, consecutive=3):
             cursor.toggle_pause()
             hysteresis.reset()
             print('***Pause***')
-        if hysteresis.is_stable('rh_animalhead', secs=0.2, consecutive=2) and pose['lefthand_up']:
-            cursor.keypad_back()
-            print('***Back***')
 
 cam.release()
 cv2.destroyAllWindows()

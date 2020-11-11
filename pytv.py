@@ -156,6 +156,9 @@ class PyTVCursor:
     def keypad_back(self):
         self.input_control.back()
 
+    def keypad_home(self):
+        self.input_control.home()
+
     def test_amazon_profiles(self):
         self.center()
         print('start')
