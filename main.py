@@ -1,24 +1,27 @@
 import cv2
 import time
 from pytv import PyTVCursor
-from pose_tracker import PoseTracker
-from gesture_trainer import GestureTrainer
+from openpose_interface import PoseTracker
+from gesture_detector import GestureDetector
 from hysteresis import Hysteresis
 
 cursor = PyTVCursor()
 cam = cv2.VideoCapture(0)
 pose_tracker = PoseTracker()
-gesture_trainer = GestureTrainer()
+gesture_trainer = GestureDetector(prediction_model_filename='trained_model.h5')
 hysteresis = Hysteresis()
 image_collect_only = False
 use_live_camera = True
 
+
 while cv2.waitKey(1) != 27:
     if use_live_camera:
         ret, frame = cam.read()
-        pose = pose_tracker.predict_pose_from_frame(frame)
     else:
-        pose, frame = pose_tracker.get_pose_and_frame_from_file()
+        test_hands_up_image = 'D:\\git\\openpose\\examples\\media\\hands_up.jpg'
+        frame = cv2.imread(test_hands_up_image)
+
+    pose = pose_tracker.predict_pose_from_frame(frame)
 
     if pose is None:
         time.sleep(0.5)
@@ -29,7 +32,11 @@ while cv2.waitKey(1) != 27:
         continue
 
     if pose['righthand_up']:
-        gesture, confidence = gesture_trainer.predict_gesture_from_frame(frame, pose['hand_rectangles'])
+        gesture, confidence = gesture_trainer.predict_gesture_from_frame(
+            frame,
+            pose['hand_rectangles'],
+            capture_low_confidence_training_img=False,
+            capture_high_confidence_training_img=False)
 
         if confidence > 0.80:
             hysteresis.update_state(gesture)
@@ -44,19 +51,19 @@ while cv2.waitKey(1) != 27:
             cursor.keypad_home()
             hysteresis.reset()
             print('***Home***')
-        if hysteresis.is_stable('rh_two', secs=0.2, consecutive=2) and not pose['lefthand_up']:
+        if hysteresis.is_stable('rh_two', secs=0.1, consecutive=2) and not pose['lefthand_up']:
             cursor.keypad_up()
             hysteresis.reset()
             print('***Up***')
-        if hysteresis.is_stable('rh_twodown', secs=0.2, consecutive=2):
+        if hysteresis.is_stable('rh_twodown', secs=0.1, consecutive=2):
             cursor.keypad_down()
             hysteresis.reset()
             print('***Down***')
-        if hysteresis.is_stable('rh_twoleft', secs=0.2, consecutive=2) and not pose['lefthand_up']:
+        if hysteresis.is_stable('rh_twoleft', secs=0.1, consecutive=2) and not pose['lefthand_up']:
             cursor.keypad_left()
             hysteresis.reset()
             print('***Left***')
-        if hysteresis.is_stable('rh_tworight', secs=0.2, consecutive=2):
+        if hysteresis.is_stable('rh_tworight', secs=0.1, consecutive=2):
             cursor.keypad_right()
             hysteresis.reset()
             print('***Right***')
