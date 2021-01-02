@@ -18,15 +18,14 @@ from keras.models import Sequential
 from keras.preprocessing.image import ImageDataGenerator
 from sklearn.preprocessing import OneHotEncoder
 from matplotlib import pyplot
-from tensorflow.python.ops.confusion_matrix import confusion_matrix
-
+from sklearn.metrics import classification_report, confusion_matrix
 
 class GestureDetector:
     def __init__(self, prediction_model_filename=None):
         self.capture_frequency_sec = 0.2
         self.last_capture_timestamp = 0
         self.min_validation_images = 50
-        self.min_test_images = 10
+        self.min_test_images = 20
         self.gestures = [
             'animalhead',
             'fingerspread',
@@ -231,24 +230,24 @@ class GestureDetector:
                         y[t].append('{}_{}'.format(hand, pose))
 
         train_datagen = ImageDataGenerator(
-            #preprocessing_function=keras.applications.vgg16.preprocess_input,
+            preprocessing_function=keras.applications.mobilenet.preprocess_input,
             width_shift_range=0.1,
             height_shift_range=0.1,
             fill_mode='nearest',
-            rescale=1./255
+            #rescale=1./255
         )
 
         val_datagen = ImageDataGenerator(
-            #preprocessing_function=keras.applications.vgg16.preprocess_input,
+            preprocessing_function=keras.applications.mobilenet.preprocess_input,
             width_shift_range=0.1,
             height_shift_range=0.1,
             fill_mode='nearest',
-            rescale=1./255
+            #rescale=1./255
         )
 
         test_datagen = ImageDataGenerator(
-            #preprocessing_function=keras.applications.vgg16.preprocess_input,
-            rescale=1./255
+            preprocessing_function=keras.applications.mobilenet.preprocess_input,
+            #rescale=1./255
         )
 
         for t in ['train', 'val', 'test']:
@@ -274,23 +273,18 @@ class GestureDetector:
         print('About to train with {} training images'.format(len(x['train'])))
 
         learning_rate = 0.001
-        epocs = 90
+        epocs = 70
         batch_size = 14
         model_name = 'hand-pose-right-{}-{}.h5'.format(datetime.date.today(), epocs)
 
         train_gen = train_datagen.flow(x['train'], y['train'], batch_size=batch_size, shuffle=True)
         val_gen = val_datagen.flow(x['val'], y['val'], batch_size=batch_size, shuffle=True)
-        test_gen = test_datagen.flow(x['test'], y['test'], batch_size=batch_size)
+        test_gen = test_datagen.flow(x['test'], y['test'], batch_size=batch_size, shuffle=False)
 
-        model = Sequential()
-        model.add(Conv2D(filters=32, kernel_size=(3, 3), activation='relu', input_shape=x['train'][0].shape))
-        model.add(Conv2D(filters=64, kernel_size=(3, 3), activation='relu'))
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(rate=0.25))
-        model.add(Flatten())
-        model.add(Dense(units=128, activation='relu'))
-        model.add(Dropout(rate=0.5))
-        model.add(Dense(units=len(enc.categories_[0]), activation='softmax'))
+        mobile_net = tf.keras.applications.mobilenet.MobileNet()
+        sixth_to_last = mobile_net.layers[-6].output
+        output = Dense(units=len(enc.categories_[0]), activation='softmax')(sixth_to_last)
+        model = tf.keras.Model(inputs=mobile_net.input, outputs=output)
         model.compile(loss=keras.losses.categorical_crossentropy,
                       optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
                       metrics=['accuracy'])
@@ -310,10 +304,10 @@ class GestureDetector:
         model.save(model_name)
         np.save(f'{model_name}', enc.categories_[0])
 
-        predictions = model.predict(x=test_gen.x, verbose=2)
+        predictions = model.predict(test_gen, verbose=2)
         y_pred = np.argmax(predictions, axis=1)
         cm_labels = np.argmax(test_gen.y, axis=1)
-        cm = confusion_matrix(labels=cm_labels, predictions=y_pred).numpy()
+        cm = confusion_matrix(test_gen.classes, y_pred).numpy()
         cm_norm = np.around(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], decimals=2)
         cm_df = pd.DataFrame(cm_norm,
                              index=enc.categories_[0],
@@ -339,5 +333,5 @@ if __name__ == '__main__':
         'tworight',
         'twodown',
     ]
-    trainer.train(['rh'], gestures_to_train, show_training_images=False)
+    trainer.train(['rh'], gestures_to_train, show_training_images=True)
 
