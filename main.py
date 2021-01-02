@@ -1,25 +1,30 @@
 import cv2
 import time
+from camera import Camera
 from pytv import PyTVCursor
 from openpose_interface import PoseTracker
 from gesture_detector import GestureDetector
 from hysteresis import Hysteresis
 
 cursor = PyTVCursor()
-cam = cv2.VideoCapture(0)
 pose_tracker = PoseTracker()
-gesture_trainer = GestureDetector(prediction_model_filename='trained_model.h5')
+#gesture_trainer = GestureDetector(prediction_model_filename='hand-pose-right-2020-11-25-70.h5')
+gesture_trainer = GestureDetector(prediction_model_filename='hand-pose-right-2020-11-25-90-perfect-confusion.h5')
 hysteresis = Hysteresis()
+
 image_collect_only = False
 use_live_camera = True
-
+cam = Camera('rtsp://10.0.0.10/ch0_0.h264')
 
 while cv2.waitKey(1) != 27:
     if use_live_camera:
-        ret, frame = cam.read()
+        frame = cam.getFrame()
     else:
         test_hands_up_image = 'D:\\git\\openpose\\examples\\media\\hands_up.jpg'
         frame = cv2.imread(test_hands_up_image)
+
+    if frame is None:
+        continue
 
     pose = pose_tracker.predict_pose_from_frame(frame)
 
@@ -77,5 +82,4 @@ while cv2.waitKey(1) != 27:
             hysteresis.reset()
             print('***Pause***')
 
-cam.release()
 cv2.destroyAllWindows()
