@@ -33,7 +33,9 @@ class PyTVCursor:
 
         self.last_click_ms = 0
         self.paused = False
+        self.verbose = True
 
+        self.client = None
         self.input_control = None
         self.system_control = None
         self.media_control = None
@@ -134,9 +136,13 @@ class PyTVCursor:
         if self.paused:
             self.media_control.play()
             self.paused = False
+            if self.verbose:
+                self.system_control.notify("Play")
         else:
             self.media_control.pause()
             self.paused = True
+            if self.verbose:
+                self.system_control.notify("Pause")
 
     def keypad_up(self):
         self.input_control.up()
@@ -152,12 +158,18 @@ class PyTVCursor:
 
     def keypad_ok(self):
         self.input_control.ok()
+        if self.verbose:
+            self.system_control.notify("Ok")
 
     def keypad_back(self):
         self.input_control.back()
+        if self.verbose:
+            self.system_control.notify("Back")
 
     def keypad_home(self):
         self.input_control.home()
+        if self.verbose:
+            self.system_control.notify("Home")
 
     def test_amazon_profiles(self):
         self.center()

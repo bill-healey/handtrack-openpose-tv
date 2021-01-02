@@ -39,6 +39,7 @@ Note that capturing images during prediction does create some lag and can make g
 - [x] The WebOSTv interface centers the cursor at times.  Cursor tracking logic within pytv.py needs to match that behavior.
 - [x] Figure out how to package this is a more user-friendly way
 - [x] Upload hand image data to Kaggle
+- [x] Try temporal recurrence
 
 ## Requirements
 - [x] pywebostv==0.8.4
